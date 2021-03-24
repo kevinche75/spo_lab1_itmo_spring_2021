@@ -4,6 +4,7 @@
 
 #include <stdint.h>
 
+
 #ifndef SPO_LAB1_WINDEF_H
 #define SPO_LAB1_WINDEF_H
 
@@ -18,151 +19,175 @@ typedef unsigned long DWORD;
 typedef unsigned long ULONG;
 typedef int64_t LONGLONG;
 typedef uint64_t ULARGE_INTEGER;
+typedef uint64_t sector_t;
+typedef uint64_t block_t;
 
-typedef struct _BIOS_PARAMETER_BLOCK {
-/*0x0b*/USHORT bytes_per_sector;    /* Размер сектора, в байтах */
-/*0x0d*/UCHAR sectors_per_cluster;    /* Секторов в кластере */
-/*0x0e*/USHORT reserved_sectors;        /* должен быть ноль */
-/*0x10*/UCHAR fats;            /* должен быть ноль */
-/*0x11*/USHORT root_entries;        /* должен быть ноль */
-/*0x13*/USHORT sectors;            /* должен быть ноль */
-/*0x15*/UCHAR media_type;        /* тип носителя, 0xf8 = hard disk */
-/*0x16*/USHORT sectors_per_fat;        /* должен быть ноль */
-/*0x18*/USHORT sectors_per_track;    /* не используется */
-/*0x1a*/USHORT heads;            /* не используется */
-/*0x1c*/ULONG hidden_sectors;        /* не используется */
-/*0x20*/ULONG large_sectors;        /* должен быть ноль */
-/* sizeof() = 25 (0x19) bytes */
-} BIOS_PARAMETER_BLOCK, *PBIOS_PARAMETER_BLOCK;
+struct ntfs_bpb {
+    uint8_t jmp_boot[3];
+    char oem_name[8];
+    uint16_t sector_size; // bytes_per_sector
+    uint8_t sec_per_clust;
+    uint16_t res_sectors;
+    uint8_t zero_0[3];
+    uint16_t zero_1;
+    uint8_t media;
+    uint16_t zero_2;
+    uint16_t unused_0;
+    uint16_t unused_1;
+    uint32_t unused_2;
+    uint32_t zero_3;
+    uint32_t unused_3;
+    uint64_t total_sectors;
+    uint64_t mft_lclust;
+    uint64_t mft_mirr_lclust;
+    int8_t clust_per_mft_record;
+    uint8_t unused_4[3];
+    uint8_t clust_per_idx_record;
+    uint8_t unused_5[3];
+    uint64_t vol_serial;
+    uint32_t unused_6;
+    uint8_t pad[428];       /* padding to a sector boundary (512 bytes) */
+} __attribute__((__packed__));
 
-typedef struct _NTFS_BOOT_SECTOR {
-/*0x00*/UCHAR jump[3];            /* переход на загрузочный код */
-/*0x03*/ULARGE_INTEGER oem_id;    /* сигнатура "NTFS    ". */
-/*0x0b*/BIOS_PARAMETER_BLOCK bpb;
-/*0x24*/UCHAR physical_drive;        /* не используется */
-/*0x25*/UCHAR current_head;        /* не используется */
-/*0x26*/UCHAR extended_boot_signature; /* не используется */
-/*0x27*/UCHAR reserved2;            /* не используется */
-/*0x28*/ULARGE_INTEGER number_of_sectors;    /* Количество секторов на томе. */
-/*0x30*/ULARGE_INTEGER mft_lcn;    /* Стартовый кластер MFT. */
-/*0x38*/ULARGE_INTEGER mftmirr_lcn;/* Стартовый кластер копии MFT */
-/*0x40*/CHAR clusters_per_mft_record;    /* Размер MFT записи в кластерах. */
-/*0x41*/UCHAR reserved0[3];        /* зарезервировано */
-/*0x44*/CHAR clusters_per_index_record;/* Размер индексной записи в кластерах. */
-/*0x45*/UCHAR reserved1[3];        /* зарезервировано */
-/*0x48*/ULARGE_INTEGER volume_serial_number;    /* уникальный серийный номер тома */
-/*0x50*/ULONG checksum;            /* не используется */
-/*0x54*/UCHAR bootstrap[426];        /* загрузочный-код */
-/*0x1fe*/USHORT end_of_sector_marker;    /* конец загрузочного сектора, сигнатура 0xaa55 */
-/* sizeof() = 512 (0x200) bytes */
-} NTFS_BOOT_SECTOR, *PNTFS_BOOT_SECTOR;
+struct ntfs_mft_record {
+    uint32_t magic;
+    uint16_t usa_ofs;
+    uint16_t usa_count;
+    uint64_t lsn;
+    uint16_t seq_no;
+    uint16_t link_count;
+    uint16_t attrs_offset;
+    uint16_t flags;     /* MFT record flags */
+    uint32_t bytes_in_use;
+    uint32_t bytes_allocated;
+    uint64_t base_mft_record;
+    uint16_t next_attr_instance;
+    uint16_t reserved;
+    uint32_t mft_record_no;
+} __attribute__((__packed__));   /* 48 bytes */
 
-NTFS_BOOT_SECTOR *openFileSystem(char *name);
-
-typedef enum {
-    MFT_RECORD_NOT_USED = 0, //запись не используется
-    MFT_RECORD_IN_USE = 1, //запись используется
-    MFT_RECORD_IS_DIRECTORY = 2 //запись описывает каталог
-} MFT_RECORD_FLAGS;
-
-typedef struct _MFT_RECORD {
-/*0x00*/    ULONG signature; //сигнатура 'FILE'
-/*0x04*/    USHORT usa_offs;
-/*0x06*/    USHORT usa_count;
-/*0x08*/    ULARGE_INTEGER lsn;
-/*0x10*/    USHORT sequence_number;
-/*0x12*/    USHORT link_count;
-/*0x14*/    USHORT attrs_offset;
-/*0x16*/    USHORT flags;//флаги, см. MFT_RECORD_FLAGS
-/*0x18*/    ULONG bytes_in_use;
-/*0x1C*/    ULONG bytes_allocated;
-/*0x20*/    ULARGE_INTEGER base_mft_record; //адрес базовой MFT-записи
-/*0x28*/    USHORT next_attr_instance;
-/*0x2A*/    USHORT reserved;
-/*0x2C*/    ULONG mft_record_number;
-//size - 48 b
-} MFT_RECORD, *PMFT_RECORD;
-
-//struct MFT_REF
-//{
-//    unsigned int64_t index : 48; //индекс элемента в таблице
-//    unsigned int64_t ordinal : 16; //порядковый номер
-//};
-
-typedef enum {
-    NTFS_AT_UNUSED = 0x00,
-    NTFS_AT_STANDARD_INFORMATION = 0x10,
-    NTFS_AT_ATTR_LIST = 0x20,
-    NTFS_AT_FILENAME = 0x30,
-    NTFS_AT_OBJ_ID = 0x40,
-    NTFS_AT_SECURITY_DESCP = 0x50,
-    NTFS_AT_VOL_NAME = 0x60,
-    NTFS_AT_VOL_INFO = 0x70,
-    NTFS_AT_DATA = 0x80,
-    NTFS_AT_INDEX_ROOT = 0x90,
-    NTFS_AT_INDEX_ALLOCATION = 0xA0,
-    NTFS_AT_BITMAP = 0xB0,
-    NTFS_AT_REPARSE_POINT = 0xC0,
-    NTFS_AT_EA_INFO = 0xD0,
-    NTFS_AT_EA = 0xE0,
-    NTFS_AT_PROPERTY_SET = 0xF0,
-    NTFS_AT_LOGGED_UTIL_STREAM = 0x100,
-    NTFS_AT_FIRST_USER_DEFINED_ATTR = 0x1000,
-    NTFS_AT_END = 0xFFFFFFFF,
-} ATTR_TYPES;
-
-typedef enum {
-    NTFS_FILE_ATTR_READONLY                     = 0x00000001,
-    NTFS_FILE_ATTR_HIDDEN                       = 0x00000002,
-    NTFS_FILE_ATTR_SYSTEM                       = 0x00000004,
-    NTFS_FILE_ATTR_DIRECTORY                    = 0x00000010,
-    NTFS_FILE_ATTR_ARCHIVE                      = 0x00000020,
-    NTFS_FILE_ATTR_DEVICE                       = 0x00000040,
-    NTFS_FILE_ATTR_NORMAL                       = 0x00000080,
-    NTFS_FILE_ATTR_TEMPORARY                    = 0x00000100,
-    NTFS_FILE_ATTR_SPARSE_FILE                  = 0x00000200,
-    NTFS_FILE_ATTR_REPARSE_POINT                = 0x00000400,
-    NTFS_FILE_ATTR_COMPRESSED                   = 0x00000800,
-    NTFS_FILE_ATTR_OFFLINE                      = 0x00001000,
-    NTFS_FILE_ATTR_NOT_CONTENT_INDEXED          = 0x00002000,
-    NTFS_FILE_ATTR_ENCRYPTED                    = 0x00004000,
-    NTFS_FILE_ATTR_VALID_FLAGS                  = 0x00007FB7,
-    NTFS_FILE_ATTR_VALID_SET_FLAGS              = 0x000031A7,
-    NTFS_FILE_ATTR_DUP_FILE_NAME_INDEX_PRESENT  = 0x10000000,
-    NTFS_FILE_ATTR_DUP_VIEW_INDEX_PRESENT       = 0x20000000,
-} ATTR_FLAGS;
-
-typedef struct _ATTR_RECORD {
-/*0x00*/    ATTR_TYPES type; //тип атрибута
-/*0x04*/    USHORT length; //длина заголовка; используется для перехода к //следующему   атрибуту
-/*0x06*/    USHORT Reserved;
-/*0x08*/    UCHAR non_resident; //1 если атрибут нерезидентный, 0 - резидентный
-/*0x09*/    UCHAR name_length; //длина имени атрибута, в символах
-/*0x0A*/    USHORT name_offset; //смещение имени атрибута, относительно заголовка атрибута
-/*0x0C*/    USHORT flags; //флаги, перечислены в ATTR_FLAGS
-/*0x0E*/    USHORT instance;
-
+struct ntfs_attr_record {
+    uint32_t type;      /* Attr. type code */
+    uint32_t len;
+    uint8_t non_resident;
+    uint8_t name_len;
+    uint16_t name_offset;
+    uint16_t flags;     /* Attr. flags */
+    uint16_t instance;
     union {
-        //Резидентный атрибут
-        struct {
-/*0x10*/    ULONG value_length; //размер, в байтах, тела атрибута
-/*0x14*/    USHORT value_offset; //байтовое смещение тела, относительно заголовка
-            //атрибута
-/*0x16*/    UCHAR resident_flags; //флаги, перечислены в RESIDENT_ATTR_FLAGS
-/*0x17*/    UCHAR reserved;
-        } r;
-        //Нерезидентный атрибут
-        struct {
-/*0x10*/    ULARGE_INTEGER lowest_vcn;
-/*0x18*/    ULARGE_INTEGER highest_vcn;
-/*0x20*/    USHORT mapping_pairs_offset;//смещение списка отрезков
-/*0x22*/    UCHAR compression_unit;
-/*0x23*/    UCHAR reserved1[5];
-/*0x28*/    ULARGE_INTEGER allocated_size; //размер дискового пространства,
-            //которое было выделено под тело
-            //атрибута
-/*0x30*/    ULARGE_INTEGER data_size; //реальный размер атрибута
-/*0x38*/    ULARGE_INTEGER initialized_size;
-        } nr;
-    } u;
-} ATTR_RECORD, *PATTR_RECORD;
+        struct {    /* Resident attribute */
+            uint32_t value_len;
+            uint16_t value_offset;
+            uint8_t flags;  /* Flags of resident attributes */
+            int8_t reserved;
+        } __attribute__((__packed__)) resident;
+        struct {    /* Non-resident attributes */
+            uint64_t lowest_vcn;
+            uint64_t highest_vcn;
+            uint16_t mapping_pairs_offset;
+            uint8_t compression_unit;
+            uint8_t reserved[5];
+            int64_t allocated_size;
+            int64_t data_size; /* Byte size of the attribute value.
+                                * Note: it can be larger than
+                                * allocated_size if attribute value is
+                                * compressed or sparse.
+                                */
+            int64_t initialized_size;
+            int64_t compressed_size;
+        } __attribute__((__packed__)) non_resident;
+    } __attribute__((__packed__)) data;
+} __attribute__((__packed__));
+
+//MFT FLAGS
+enum {
+    MFT_RECORD_IN_USE       = 0x0001,
+    MFT_RECORD_IS_DIRECTORY = 0x0002,
+} __attribute__((__packed__));
+
+/* The $MFT metadata file types */
+enum ntfs_system_file {
+    FILE_MFT            = 0,
+    FILE_MFTMirr        = 1,
+    FILE_LogFile        = 2,
+    FILE_Volume         = 3,
+    FILE_AttrDef        = 4,
+    FILE_root           = 5,
+    FILE_Bitmap         = 6,
+    FILE_Boot           = 7,
+    FILE_BadClus        = 8,
+    FILE_Secure         = 9,
+    FILE_UpCase         = 10,
+    FILE_Extend         = 11,
+    FILE_reserved12     = 12,
+    FILE_reserved13     = 13,
+    FILE_reserved14     = 14,
+    FILE_reserved15     = 15,
+    FILE_reserved16     = 16,
+};
+
+struct ntfs_sb_info {
+    block_t mft_blk;                /* The first MFT record block */
+    uint64_t mft_lcn;               /* LCN of the first MFT record */
+    unsigned mft_size;              /* The MFT size in sectors */
+    uint64_t mft_record_size;       /* MFT record size in bytes */
+
+    uint8_t clust_per_idx_record;   /* Clusters per Index Record */
+
+    unsigned long long clusters;    /* Total number of clusters */
+
+    unsigned clust_shift;           /* Based on sectors */
+    unsigned clust_byte_shift;      /* Based on bytes */
+    unsigned clust_mask;
+    unsigned clust_size;
+    unsigned sector_size;
+    unsigned sector_shift;
+    unsigned block_size;
+    unsigned block_shift;
+
+    int fd;
+} __attribute__((__packed__));
+
+enum {
+    NTFS_AT_UNUSED                      = 0x00,
+    NTFS_AT_STANDARD_INFORMATION        = 0x10,
+    NTFS_AT_ATTR_LIST                   = 0x20,
+    NTFS_AT_FILENAME                    = 0x30,
+    NTFS_AT_OBJ_ID                      = 0x40,
+    NTFS_AT_SECURITY_DESCP              = 0x50,
+    NTFS_AT_VOL_NAME                    = 0x60,
+    NTFS_AT_VOL_INFO                    = 0x70,
+    NTFS_AT_DATA                        = 0x80,
+    NTFS_AT_INDEX_ROOT                  = 0x90,
+    NTFS_AT_INDEX_ALLOCATION            = 0xA0,
+    NTFS_AT_BITMAP                      = 0xB0,
+    NTFS_AT_REPARSE_POINT               = 0xC0,
+    NTFS_AT_EA_INFO                     = 0xD0,
+    NTFS_AT_EA                          = 0xE0,
+    NTFS_AT_PROPERTY_SET                = 0xF0,
+    NTFS_AT_LOGGED_UTIL_STREAM          = 0x100,
+    NTFS_AT_FIRST_USER_DEFINED_ATTR     = 0x1000,
+    NTFS_AT_END                         = 0xFFFFFFFF,
+};
+
+enum {
+    /* Found in $MFT/$DATA */
+    NTFS_MAGIC_FILE     = 0x454C4946,   /* MFT entry */
+    NTFS_MAGIC_INDX     = 0x58444E49,   /* Index buffer */
+    NTFS_MAGIC_HOLE     = 0x454C4F48,
+
+    /* Found in $LogFile/$DATA */
+    NTFS_MAGIC_RSTR     = 0x52545352,
+    NTFS_MAGIC_RCRD     = 0x44524352,
+    /* Found in $LogFile/$DATA (May be found in $MFT/$DATA, also ?) */
+    NTFS_MAGIC_CHKDSK   = 0x444B4843,
+    /* Found in all ntfs record containing records. */
+    NTFS_MAGIC_BAAD     = 0x44414142,
+    NTFS_MAGIC_EMPTY    = 0xFFFFFFFF,   /* Record is empty */
+};
+
+struct ntfs_bpb *open_file_system(int fd);
+struct ntfs_sb_info *ntfs_init(char *name);
+int32_t ilog2(uint32_t x);
+static struct ntfs_mft_record *ntfs_mft_record_lookup_3_1(struct ntfs_sb_info *fs,
+                                                          uint32_t file);
