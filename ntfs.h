@@ -189,5 +189,10 @@ enum {
 struct ntfs_bpb *open_file_system(int fd);
 struct ntfs_sb_info *ntfs_init(char *name);
 int32_t ilog2(uint32_t x);
-static struct ntfs_mft_record *ntfs_mft_record_lookup_3_1(struct ntfs_sb_info *fs,
-                                                          uint32_t file);
+static uint64_t mft_record_lookup(struct ntfs_sb_info *fs,
+                                  uint32_t file,
+                                  struct ntfs_mft_record *mft_record);
+
+static struct ntfs_attr_record *__ntfs_attr_lookup(struct ntfs_sb_info *fs,
+                                                   uint32_t type,
+                                                   struct ntfs_mft_record *mft_record);
