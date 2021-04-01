@@ -21,6 +21,8 @@ typedef int64_t LONGLONG;
 typedef uint64_t ULARGE_INTEGER;
 typedef uint64_t sector_t;
 typedef uint64_t block_t;
+#define NTFS_MAX_FILE_NAME_LEN 255
+#define NTFS_MFT_REF_MASK 0x0000ffffffffffff
 
 struct ntfs_bpb {
     uint8_t jmp_boot[3];
@@ -186,13 +188,115 @@ enum {
     NTFS_MAGIC_EMPTY    = 0xFFFFFFFF,   /* Record is empty */
 };
 
+struct ntfs_inode{
+    uint32_t mft_no;
+    char* filename;
+    uint16_t type;
+    struct ntfs_inode *parent; /*parent directory*/
+    struct ntfs_inode *next_inode; /*connected list of files and dirs in dir or next inode in connected list*/
+};
+
+struct ntfs_filename_attr {
+    uint64_t parent_directory;
+    int64_t ctime;
+    int64_t atime;
+    int64_t mtime;
+    int64_t rtime;
+    uint64_t allocated_size;
+    uint64_t data_size;
+    uint32_t file_attrs;
+    union {
+        struct {
+            uint16_t packed_ea_size;
+            uint16_t reserved;      /* reserved for alignment */
+        } __attribute__((__packed__)) ea;
+        struct {
+            uint32_t reparse_point_tag;
+        } __attribute__((__packed__)) rp;
+    } __attribute__((__packed__)) type;
+    uint8_t file_name_len;
+    uint8_t file_name_type;
+    uint16_t file_name[0];          /* File name in Unicode */
+} __attribute__((__packed__));
+
+//header of $INDEX_ROOT and $INDEX_ALLOCATION
+struct ntfs_idx_header {
+    uint32_t entries_offset;
+    uint32_t index_len;
+    uint32_t allocated_size;
+    uint8_t flags;              /* Index header flags */
+    uint8_t reserved[3];        /* Align to 8-byte boundary */
+} __attribute__((__packed__));
+
+//body if $INDEX_ROOT body + header
+struct ntfs_idx_root {
+    uint32_t type;  /* It is $FILE_NAME for directories, zero for view indexes.
+                     * No other values allowed.
+                     */
+    uint32_t collation_rule;
+    uint32_t index_block_size;
+    uint8_t clust_per_index_block;
+    uint8_t reserved[3];
+    struct ntfs_idx_header index;
+} __attribute__((__packed__));
+
+//index element in index record
+struct ntfs_idx_entry {
+    union {
+        struct { /* Only valid when INDEX_ENTRY_END is not set */
+            uint64_t indexed_file;
+        } __attribute__((__packed__)) dir;
+        struct { /* Used for views/indexes to find the entry's data */
+            uint16_t data_offset;
+            uint16_t data_len;
+            uint32_t reservedV;
+        } __attribute__((__packed__)) vi;
+    } __attribute__((__packed__)) data;
+    uint16_t len;
+    uint16_t key_len;
+    uint16_t flags;     /* Index entry flags */
+    uint16_t reserved;  /* Align to 8-byte boundary */
+    union {
+        struct ntfs_filename_attr file_name;
+        //SII_INDEX_KEY sii;
+        //SDH_INDEX_KEY sdh;
+        //GUID object_id;
+        //REPARSE_INDEX_KEY reparse;
+        //SID sid;
+        uint32_t owner_id;
+    } __attribute__((__packed__)) key;
+} __attribute__((__packed__));
+
+enum {
+    INDEX_ENTRY_NODE            = 1,
+    INDEX_ENTRY_END             = 2,
+    /* force enum bit width to 16-bit */
+    INDEX_ENTRY_SPACE_FILTER    = 0xFFFF,
+} __attribute__((__packed__));
+
+enum {
+    MAP_UNSPEC,
+    MAP_START           = 1 << 0,
+    MAP_END             = 1 << 1,
+    MAP_ALLOCATED       = 1 << 2,
+    MAP_UNALLOCATED     = 1 << 3,
+    MAP_MASK            = 0x0000000F,
+};
+
+struct mapping_chunk {
+    uint64_t length;
+    uint8_t *buf;
+};
+
 struct ntfs_bpb *open_file_system(int fd);
 struct ntfs_sb_info *ntfs_init(char *name);
-int32_t ilog2(uint32_t x);
-static uint64_t mft_record_lookup(struct ntfs_sb_info *fs,
-                                  uint32_t file,
-                                  struct ntfs_mft_record *mft_record);
-
-static struct ntfs_attr_record *__ntfs_attr_lookup(struct ntfs_sb_info *fs,
-                                                   uint32_t type,
-                                                   struct ntfs_mft_record *mft_record);
+//int32_t ilog2(uint32_t x);
+//static uint64_t mft_record_lookup(struct ntfs_sb_info *fs,
+//                                  uint32_t file,
+//                                  struct ntfs_mft_record *mft_record);
+//
+//static struct ntfs_attr_record *__ntfs_attr_lookup(struct ntfs_sb_info *fs,
+//                                                   uint32_t type,
+//                                                   struct ntfs_mft_record *mft_record);
+//
+//static int ntfs_readdir(struct ntfs_sb_info *fs, struct ntfs_inode *inode);
