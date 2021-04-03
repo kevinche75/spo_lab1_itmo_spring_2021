@@ -267,6 +267,18 @@ struct ntfs_idx_entry {
     } __attribute__((__packed__)) key;
 } __attribute__((__packed__));
 
+/* Attribute: Index allocation (0xA0)
+ * Note: always non-resident, of course! :-)
+ */
+struct ntfs_idx_allocation {
+    uint32_t magic;
+    uint16_t usa_ofs;           /* Update Sequence Array offsets */
+    uint16_t usa_count;         /* Update Sequence Array number in bytes */
+    int64_t lsn;
+    int64_t index_block_vcn;    /* Virtual cluster number of the index block */
+    struct ntfs_idx_header index;
+} __attribute__((__packed__));
+
 enum {
     INDEX_ENTRY_NODE            = 1,
     INDEX_ENTRY_END             = 2,
@@ -286,6 +298,7 @@ enum {
 struct mapping_chunk {
     uint64_t length;
     uint8_t *buf;
+    uint8_t current_block;
 };
 
 struct ntfs_bpb *open_file_system(int fd);
