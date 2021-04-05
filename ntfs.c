@@ -28,7 +28,7 @@ struct ntfs_bpb *open_file_system(int fd){
     return NULL;
 }
 
-static int ntfs_attr_lookup(struct ntfs_sb_info *fs,
+int ntfs_attr_lookup(struct ntfs_sb_info *fs,
                                                  uint32_t type,
                                                  struct ntfs_mft_record *mft_record,
                                                          struct ntfs_attr_record **attr_record)
@@ -54,7 +54,7 @@ static int ntfs_attr_lookup(struct ntfs_sb_info *fs,
     return 0;
 }
 
-static uint64_t mft_record_lookup(struct ntfs_sb_info *fs, uint32_t file, struct ntfs_mft_record **mft_record)
+uint64_t mft_record_lookup(struct ntfs_sb_info *fs, uint32_t file, struct ntfs_mft_record **mft_record)
 {
     const uint64_t mft_record_size = fs->mft_record_size;
     uint64_t offset;
@@ -71,7 +71,7 @@ static uint64_t mft_record_lookup(struct ntfs_sb_info *fs, uint32_t file, struct
     return offset-fs->mft_record_size;            /* found MFT record */
 }
 
-static uint8_t ntfs_cvt_filename(char *filename,
+uint8_t ntfs_cvt_filename(char *filename,
                                  const struct ntfs_idx_entry *ie)
 {
     const uint16_t *entry_fn;
@@ -89,12 +89,12 @@ static uint8_t ntfs_cvt_filename(char *filename,
     return entry_fn_len + 1;
 }
 
-static inline bool is_filename_printable(const char *s)
+bool is_filename_printable(const char *s)
 {
     return s && (*s != '.' && *s != '$');
 }
 
-static int read_clusters2buf(uint8_t **buf, uint64_t *buf_current_size, uint64_t *buf_size, int64_t lcn, uint64_t length, struct ntfs_sb_info * fs){
+int read_clusters2buf(uint8_t **buf, uint64_t *buf_current_size, uint64_t *buf_size, int64_t lcn, uint64_t length, struct ntfs_sb_info * fs){
     length <<= fs->clust_byte_shift;
     uint64_t offset = lcn << fs->clust_byte_shift;
     /* if buf is not enough */
@@ -115,7 +115,7 @@ static int read_clusters2buf(uint8_t **buf, uint64_t *buf_current_size, uint64_t
  *
  * return 0 on success or -1 on failure.
  */
-static int parse_data_run(uint64_t offset, struct ntfs_sb_info *fs,
+int parse_data_run(uint64_t offset, struct ntfs_sb_info *fs,
         struct mapping_chunk **chunk)
 {
     /* Pointer to the zero-terminated byte stream */
@@ -189,7 +189,7 @@ static int parse_data_run(uint64_t offset, struct ntfs_sb_info *fs,
     return 0;
 }
 
-static int ntfs_readdir(struct ntfs_sb_info *fs, struct ntfs_inode **inode){
+int ntfs_readdir(struct ntfs_sb_info *fs, struct ntfs_inode **inode){
     struct ntfs_mft_record *dir_record = malloc(sizeof (struct ntfs_mft_record));
     uint64_t offset;
     offset = mft_record_lookup(fs, (*inode)->mft_no, &dir_record);
@@ -204,11 +204,10 @@ static int ntfs_readdir(struct ntfs_sb_info *fs, struct ntfs_inode **inode){
         return -1;
     }
 
-    struct ntfs_attr_record *attr_index = malloc(sizeof (struct ntfs_attr_record));
+    struct ntfs_attr_record *attr_index = NULL;
     err = ntfs_attr_lookup(fs, NTFS_AT_INDEX_ROOT, dir_record, &attr_index);
     if (!attr_index || err == -1) {
         free(dir_record);
-        free(attr_index);
         return -1;
     }
 
@@ -233,18 +232,17 @@ static int ntfs_readdir(struct ntfs_sb_info *fs, struct ntfs_inode **inode){
                                                      &dir_entry);
                 if (mft_entry_offset == -1) {
                     free(dir_record);
-                    free(attr_index);
                     free(dir_entry);
                     return -1;
                 }
                 current_inode->type = dir_entry->flags;
+                current_inode->mft_no = idx_entry->data.dir.indexed_file & NTFS_MFT_REF_MASK;
             }
         }
     } while(!(idx_entry->flags & INDEX_ENTRY_END));
 
     if (!(idx_entry->flags & INDEX_ENTRY_NODE)) {
         free(dir_record);
-        free(attr_index);
         free(dir_entry);
         return 0;
     }
@@ -253,14 +251,12 @@ static int ntfs_readdir(struct ntfs_sb_info *fs, struct ntfs_inode **inode){
 
     if (!attr_index || err == -1) {
         free(dir_record);
-        free(attr_index);
         free(dir_entry);
         return 0;
     }
 
     if (!attr_index->non_resident) {
         free(dir_record);
-        free(attr_index);
         free(dir_entry);
         return -1;
     }
@@ -278,14 +274,12 @@ static int ntfs_readdir(struct ntfs_sb_info *fs, struct ntfs_inode **inode){
             idx_alloc = (struct ntfs_idx_allocation *)(chunk->buf + (chunk->current_block << fs->block_shift));
             if (idx_alloc->magic != NTFS_MAGIC_INDX) {
                 printf("Not a valid INDX record.\n");
-                free(attr_index);
                 free(dir_entry);
                 free(chunk->buf);
                 free(chunk);
                 return -1;
             }
         } else {
-            free(attr_index);
             free(dir_entry);
             free(chunk->buf);
             free(chunk);
@@ -306,23 +300,58 @@ static int ntfs_readdir(struct ntfs_sb_info *fs, struct ntfs_inode **inode){
                     memcpy(current_inode->filename, &filename[0], filename_len);
                     mft_entry_offset = mft_record_lookup(fs, idx_entry->data.dir.indexed_file & NTFS_MFT_REF_MASK, &dir_entry);
                     if (mft_entry_offset == -1) {
-                        free(attr_index);
                         free(dir_entry);
                         free(chunk->buf);
                         free(chunk);
                         return -1;
                     }
                     current_inode->type = dir_entry->flags;
+                    current_inode->mft_no = idx_entry->data.dir.indexed_file & NTFS_MFT_REF_MASK;
                 }
             }
         } while (idx_entry_offset < (chunk->buf + chunk->length) && !(idx_entry->flags & INDEX_ENTRY_END));
 
         chunk->current_block++;
     } while(chunk->current_block < (chunk->length >> fs->block_shift));
-    free(attr_index);
     free(dir_entry);
     free(chunk->buf);
     free(chunk);
+    return 0;
+}
+
+int read_file_data(struct mapping_chunk **chunk, struct ntfs_inode *inode, struct ntfs_sb_info *fs){
+
+    if (inode->type & MFT_RECORD_IS_DIRECTORY) return -1;
+
+    struct ntfs_mft_record *file_record = malloc(sizeof (struct ntfs_mft_record));
+    uint64_t offset = mft_record_lookup(fs, inode->mft_no, &file_record);
+
+    if (offset == -1){
+        free(file_record);
+        return -1;
+    }
+
+    struct ntfs_attr_record *data_attr = NULL;
+    int err = ntfs_attr_lookup(fs, NTFS_AT_DATA, file_record, &data_attr);
+
+    if (err == -1){
+        free(file_record);
+        return -1;
+    }
+
+    *chunk = malloc(sizeof (struct mapping_chunk));
+
+    if (!data_attr->non_resident){
+        (*chunk)->buf = malloc(data_attr->data.resident.value_len);
+        memcpy((*chunk)->buf, (uint8_t *)data_attr + data_attr->data.resident.value_offset, data_attr->data.resident.value_len);
+        (*chunk)->length = data_attr->data.resident.value_len;
+    } else {
+        uint64_t stream = offset + ((uint8_t *)data_attr - (uint8_t *)file_record) + data_attr->data.non_resident.mapping_pairs_offset;
+        parse_data_run(stream, fs, &(*chunk));
+        (*chunk)->length = data_attr->data.non_resident.data_size;
+    }
+
+    free(file_record);
     return 0;
 }
 
@@ -357,32 +386,11 @@ struct ntfs_sb_info *ntfs_init(char *name){
 
     sbi->clusters = ntfs.total_sectors << sbi->sector_shift >> sbi->clust_shift;
 
-    struct ntfs_mft_record *mft_rec = malloc(sizeof (struct ntfs_mft_record));
-    uint64_t record_offset;
-    record_offset = mft_record_lookup(sbi, FILE_root, &mft_rec);
-    struct ntfs_attr_record *attr = malloc(sizeof (struct ntfs_attr_record));
-    ntfs_attr_lookup(sbi, NTFS_AT_FILENAME, mft_rec, &attr);
-//    struct ntfs_filename_attr *fn;
-//    char filename[NTFS_MAX_FILE_NAME_LEN + 1];
-//    const uint16_t *entry_fn;
-//    uint8_t entry_fn_len;
-//    unsigned i;
-//
-//    for (int k = 67; k < 100; k++) {
-//        record_offset = mft_record_lookup(sbi, k, mft_rec);
-//        ntfs_attr_lookup(sbi, NTFS_AT_FILENAME, mft_rec, &attr);
-//        fn = (struct ntfs_filename_attr*) ((uint8_t *)attr + attr->data.resident.value_offset);
-//        entry_fn = fn->file_name;
-//        entry_fn_len = fn->file_name_len;
-//        for (i = 0; i < entry_fn_len; i++)
-//            filename[i] = (char) entry_fn[i];
-//
-//        filename[i] = '\0';
-//
-//    }
     struct ntfs_inode *root_inode = malloc(sizeof (struct ntfs_inode));
     root_inode->mft_no = FILE_root;
 
     ntfs_readdir(sbi, &root_inode);
+    struct mapping_chunk *chunk = NULL;
+    read_file_data(&chunk, root_inode->next_inode, sbi);
     return  sbi;
 }
