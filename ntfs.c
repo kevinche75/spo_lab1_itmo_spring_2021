@@ -319,6 +319,22 @@ int ntfs_readdir(struct ntfs_sb_info *fs, struct ntfs_inode **inode){
     return 0;
 }
 
+int free_inode(struct ntfs_inode **inode){
+
+    struct ntfs_inode* tmp;
+
+    while (*inode != NULL)
+    {
+        tmp = *inode;
+        *inode = (*inode)->next_inode;
+        tmp->parent = NULL;
+        tmp->next_inode = NULL;
+        free(tmp->filename);
+        free(tmp);
+    }
+    return 0;
+}
+
 int read_file_data(struct mapping_chunk **chunk, struct ntfs_inode *inode, struct ntfs_sb_info *fs){
 
     if (inode->type & MFT_RECORD_IS_DIRECTORY) return -1;
@@ -390,7 +406,8 @@ struct ntfs_sb_info *ntfs_init(char *name){
     root_inode->mft_no = FILE_root;
 
     ntfs_readdir(sbi, &root_inode);
-    struct mapping_chunk *chunk = NULL;
-    read_file_data(&chunk, root_inode->next_inode, sbi);
+    free_inode(&root_inode);
+//    struct mapping_chunk *chunk = NULL;
+//    read_file_data(&chunk, root_inode->next_inode, sbi);
     return  sbi;
 }
