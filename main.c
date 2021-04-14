@@ -12,7 +12,9 @@ int shell(char *filename){
     int exitFlag = 0;
     char *inputString = malloc(1024);
     while (!exitFlag) {
-        printf("> ");
+        char *pwd_path = pwd(fs);
+        printf("%s> ", pwd_path);
+        free(pwd_path);
         fgets(inputString, 1024, stdin);
         char *command = strtok(inputString, " \n");
         if (command == NULL) {
@@ -38,9 +40,9 @@ int shell(char *filename){
             printf("%s", output);
             free(output);
         } else if (strcmp(command, "pwd") == 0) {
-//            char *output = pwd(fileSystem);
-//            printf("%s", output);
-//            free(output);
+            char *output = pwd(fs);
+            printf("%s\n", output);
+            free(output);
         } else if (strcmp(command, "cd") == 0) {
             if (path == NULL){
                 printf("cd command require path argument");

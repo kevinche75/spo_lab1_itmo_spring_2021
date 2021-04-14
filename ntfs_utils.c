@@ -179,7 +179,33 @@ char *cd(struct ntfs_sb_info *fs, char *path){
         sprintf(output, "%s", message);
         return output;
     is_f:
+        free_inode(&(result->start));
+        free(result);
         message = "Not a directory\n";
         sprintf(output, "%s", message);
         return output;
+}
+
+char *pwd(struct ntfs_sb_info *fs){
+    int size = 1;
+    int max_size = 265;
+    char *output = malloc(max_size);
+    output[0] = '\0';
+    unsigned long name_len;
+    struct ntfs_inode *tmp = fs->root_node->next_inode;
+    if (tmp == NULL){
+        strcat(output, "/ ");
+        return output;
+    }
+    while (tmp != NULL){
+        name_len = strlen(tmp->filename);
+        if (name_len+size+1 > max_size){
+            output = realloc(output, name_len+265);
+        }
+        strcat(output, "/");
+        strcat(output, tmp->filename);
+        tmp = tmp->next_inode;
+    }
+    strcat(output, " ");
+    return output;
 }
