@@ -21,9 +21,12 @@ int count_nodes(char *path){
     return result;
 }
 
-struct ntfs_inode *find_node_by_name(struct ntfs_sb_info *fs, char *path, struct ntfs_inode **start_node){
-    struct ntfs_inode *result_node = *start_node;
+int find_node_by_name(struct ntfs_sb_info *fs, char *path, struct ntfs_inode **start_node, struct ntfs_find_info **result){
+    struct ntfs_inode *result_node = malloc(sizeof (struct ntfs_inode));
     struct ntfs_inode *head;
+    memcpy(result_node, *start_node, sizeof (struct ntfs_inode));
+    result_node->filename = NULL;
+    struct ntfs_inode *start_result_node = result_node;
     bool found = false;
     char sep[2] = "/";
     char path_buf[400];
@@ -34,12 +37,13 @@ struct ntfs_inode *find_node_by_name(struct ntfs_sb_info *fs, char *path, struct
     while (sub_dir != NULL){
         found = false;
         if (!(result_node->type & MFT_RECORD_IS_DIRECTORY)) {
-            free_inode(&(*start_node)->next_inode);
+            free_inode(&start_result_node);
+            return -1;
         }
         err = ntfs_readdir(fs, &result_node);
         if (err == -1) {
-            free_inode(&(result_node->next_inode));
-            return NULL;
+            free_inode(&start_result_node);
+            return -1;
         }
         head = result_node->next_inode;
         while(head != NULL){
@@ -56,41 +60,50 @@ struct ntfs_inode *find_node_by_name(struct ntfs_sb_info *fs, char *path, struct
             head = head->next_inode;
         }
         if(!found) {
-            free_inode(&result_node->next_inode);
-            return NULL;
+            free_inode(&start_result_node);
+            return -1;
         }
         result_node = result_node->next_inode;
-        if (count==1) return result_node; else count--;
+        result_node->next_inode = NULL;
+        if (count==1) {
+            *result = malloc(sizeof (struct ntfs_find_info));
+            (*result)->start = start_result_node;
+            (*result)->result = result_node;
+            return 0;
+        } else count--;
         sub_dir = strtok(NULL, sep);
     }
-    return result_node;
+    return -1;
 }
 
 char *ls(struct ntfs_sb_info *fs, char *path){
-    struct ntfs_inode *result_node;
     bool wo_path = false;
     bool parent_pars = false;
+    struct ntfs_find_info *find_result;
+    int err_f = 0;
     if (path == NULL || strcmp(path, ".")==0) {
-        result_node = fs->cur_node;
+        find_result = malloc(sizeof (struct ntfs_find_info));
+        find_result->result =  fs->cur_node;
         wo_path = true;
         goto parse;
     }
     if (strcmp(path, "..")==0){
-        result_node = fs->cur_node->parent;
+        find_result = malloc(sizeof (struct ntfs_find_info));
+        find_result->result = fs->cur_node->parent;
         wo_path = true;
         parent_pars = true;
         goto parse;
     }
     if (path[0] == '/'){
-        result_node = find_node_by_name(fs, path, &fs->root_node);
+        err_f = find_node_by_name(fs, path, &fs->root_node, &find_result);
     } else {
-        result_node = find_node_by_name(fs, path, &fs->cur_node);
+        err_f = find_node_by_name(fs, path, &fs->cur_node, &find_result);
     }
     parse:
-    if (result_node != NULL){
-        int err = ntfs_readdir(fs, &result_node);
+    if (err_f != -1){
+        int err = ntfs_readdir(fs, &(find_result->result));
         if (err == -1) return NULL;
-        struct ntfs_inode *tmp = result_node->next_inode;
+        struct ntfs_inode *tmp = find_result->result->next_inode;
         char result[265];
         char *output = malloc(265*err);
         output[0] = '\0';
@@ -104,27 +117,69 @@ char *ls(struct ntfs_sb_info *fs, char *path){
             tmp = tmp->next_inode;
         }
         if (wo_path){
-            free_inode(&(result_node->next_inode));
-            result_node->next_inode = NULL;
+            free_inode(&(find_result->result->next_inode));
+            find_result->result->next_inode = NULL;
         } else {
-            result_node->parent->next_inode = NULL;
-            free_inode(&result_node);
+            free_inode(&(find_result->start));
         }
         if (parent_pars){
             fs->cur_node->parent->next_inode = fs->cur_node;
         }
+        find_result->result = NULL;
+        find_result->start = NULL;
         return output;
     }
     return NULL;
 }
 
-//char *cd(struct ntfs_sb_info *fs, char *path){
-//    char *output = malloc(26);
-//    output[0] = '\0';
-//    if (strcmp(path, ".")==0){
-//        return output;
-//    }
-//    if (strcmp(path, "..")==0){
-//
-//    }
-//}
+char *cd(struct ntfs_sb_info *fs, char *path){
+    char *output = malloc(27);
+    output[0] = '\0';
+    char *message;
+    if (strcmp(path, ".")==0){
+        return output;
+    }
+    if (strcmp(path, "..")==0){
+        if (fs->cur_node->mft_no == FILE_root) return output;
+        struct ntfs_inode *tmp = fs->cur_node->parent;
+        free_inode(&(fs->cur_node));
+        fs->cur_node = tmp;
+        fs->cur_node->next_inode = NULL;
+        return output;
+    }
+    struct ntfs_find_info *result;
+    int err = 0;
+    if (path[0] == '/'){
+        err = find_node_by_name(fs, path, &(fs->root_node), &result);
+        if (err == -1) goto no_f;
+        if (result->result->type & MFT_RECORD_IS_DIRECTORY){
+            fs->root_node->next_inode = result->start->next_inode;
+            result->start->next_inode->parent = fs->root_node;
+            fs->cur_node = result->result;
+            result->start->next_inode = NULL;
+            free_inode(&(result->start));
+            free(result);
+            return output;
+        } else goto is_f;
+    } else {
+        err = find_node_by_name(fs, path, &(fs->cur_node), &result);
+        if (err == -1) goto no_f;
+        if (result->result->type & MFT_RECORD_IS_DIRECTORY){
+            fs->cur_node->next_inode = result->start->next_inode;
+            result->start->next_inode->parent = fs->cur_node;
+            fs->cur_node = result->result;
+            result->start->next_inode = NULL;
+            free_inode(&(result->start));
+            free(result);
+            return output;
+        } else goto is_f;
+    }
+    no_f:
+        message = "No such file or directory\n";
+        sprintf(output, "%s", message);
+        return output;
+    is_f:
+        message = "Not a directory\n";
+        sprintf(output, "%s", message);
+        return output;
+}

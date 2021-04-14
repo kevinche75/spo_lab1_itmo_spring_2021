@@ -31,7 +31,10 @@ int shell(char *filename){
             printf("help - print help\n");
         } else if (strcmp(command, "ls") == 0) {
             char *output = ls(fs, path);
-            if (output == NULL) continue;
+            if (output == NULL) {
+                printf("No such file or directory\n");
+                continue;
+            }
             printf("%s", output);
             free(output);
         } else if (strcmp(command, "pwd") == 0) {
@@ -43,9 +46,9 @@ int shell(char *filename){
                 printf("cd command require path argument");
                 continue;
             }
-//            char *output = cd(fileSystem, path);
-//            printf("%s", output);
-//            free(output);
+            char *output = cd(fs, path);
+            printf("%s", output);
+            free(output);
         } else if (strcmp(command, "cp") == 0) {
 //            char *output = cp(fileSystem, path, outPath);
 //            printf("%s", output);

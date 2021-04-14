@@ -302,6 +302,11 @@ struct mapping_chunk {
     uint8_t current_block;
 };
 
+struct ntfs_find_info{
+    struct ntfs_inode *start;
+    struct ntfs_inode *result;
+};
+
 struct ntfs_bpb *open_file_system(int fd);
 struct ntfs_sb_info *ntfs_init(char *name);
 int32_t ilog2(uint32_t x);
