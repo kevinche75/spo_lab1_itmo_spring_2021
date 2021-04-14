@@ -128,6 +128,14 @@ enum ntfs_system_file {
     FILE_reserved16     = 16,
 };
 
+struct ntfs_inode{
+    uint32_t mft_no;
+    char* filename;
+    uint16_t type;
+    struct ntfs_inode *parent; /*parent directory*/
+    struct ntfs_inode *next_inode; /*connected list of files and dirs in dir or next inode in connected list*/
+};
+
 struct ntfs_sb_info {
     block_t mft_blk;                /* The first MFT record block */
     uint64_t mft_lcn;               /* LCN of the first MFT record */
@@ -146,7 +154,8 @@ struct ntfs_sb_info {
     unsigned sector_shift;
     unsigned block_size;
     unsigned block_shift;
-
+    struct ntfs_inode *cur_node;
+    struct ntfs_inode *root_node;
     int fd;
 } __attribute__((__packed__));
 
@@ -186,14 +195,6 @@ enum {
     /* Found in all ntfs record containing records. */
     NTFS_MAGIC_BAAD     = 0x44414142,
     NTFS_MAGIC_EMPTY    = 0xFFFFFFFF,   /* Record is empty */
-};
-
-struct ntfs_inode{
-    uint32_t mft_no;
-    char* filename;
-    uint16_t type;
-    struct ntfs_inode *parent; /*parent directory*/
-    struct ntfs_inode *next_inode; /*connected list of files and dirs in dir or next inode in connected list*/
 };
 
 struct ntfs_filename_attr {
@@ -303,13 +304,22 @@ struct mapping_chunk {
 
 struct ntfs_bpb *open_file_system(int fd);
 struct ntfs_sb_info *ntfs_init(char *name);
-//int32_t ilog2(uint32_t x);
-//static uint64_t mft_record_lookup(struct ntfs_sb_info *fs,
-//                                  uint32_t file,
-//                                  struct ntfs_mft_record *mft_record);
-//
-//static struct ntfs_attr_record *__ntfs_attr_lookup(struct ntfs_sb_info *fs,
-//                                                   uint32_t type,
-//                                                   struct ntfs_mft_record *mft_record);
-//
-//static int ntfs_readdir(struct ntfs_sb_info *fs, struct ntfs_inode *inode);
+int32_t ilog2(uint32_t x);
+uint64_t mft_record_lookup(struct ntfs_sb_info *fs, uint32_t file, struct ntfs_mft_record **mft_record);
+
+static struct ntfs_attr_record *__ntfs_attr_lookup(struct ntfs_sb_info *fs,
+                                                   uint32_t type,
+                                                   struct ntfs_mft_record *mft_record);
+int ntfs_attr_lookup(struct ntfs_sb_info *fs,
+                     uint32_t type,
+                     struct ntfs_mft_record *mft_record,
+                     struct ntfs_attr_record **attr_record);
+int ntfs_readdir(struct ntfs_sb_info *fs, struct ntfs_inode **inode);
+uint8_t ntfs_cvt_filename(char *filename,
+                          const struct ntfs_idx_entry *ie);
+int read_clusters2buf(uint8_t **buf, uint64_t *buf_current_size, uint64_t *buf_size, int64_t lcn, uint64_t length, struct ntfs_sb_info * fs);
+int parse_data_run(uint64_t offset, struct ntfs_sb_info *fs,
+                   struct mapping_chunk **chunk);
+int free_inode(struct ntfs_inode **inode);
+int read_file_data(struct mapping_chunk **chunk, struct ntfs_inode *inode, struct ntfs_sb_info *fs);
+int free_fs(struct ntfs_sb_info **fs);
