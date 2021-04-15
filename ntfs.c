@@ -225,6 +225,7 @@ int ntfs_readdir(struct ntfs_sb_info *fs, struct ntfs_inode **inode){
             filename_len = ntfs_cvt_filename(filename, idx_entry);
             if (is_filename_printable(filename)) {
                 current_inode->next_inode = malloc(sizeof (struct ntfs_inode));
+                current_inode->next_inode->next_inode = NULL;
                 current_inode = current_inode->next_inode;
                 current_inode->parent = *inode;
                 current_inode->filename = malloc(filename_len);
@@ -236,14 +237,14 @@ int ntfs_readdir(struct ntfs_sb_info *fs, struct ntfs_inode **inode){
                     return -1;
                 }
                 current_inode->type = dir_entry->flags;
-                current_inode->mft_no = idx_entry->data.dir.indexed_file & NTFS_MFT_REF_MASK;
+                current_inode->mft_no = dir_entry->mft_record_no;
                 count++;
             }
         }
-    } while(!(idx_entry->flags & INDEX_ENTRY_END));
+    } while(!(idx_entry->flags & INDEX_ENTRY_END) && idx_entry->flags != INDEX_ENTRY_STRANGE);
 
     if (!(idx_entry->flags & INDEX_ENTRY_NODE)) {
-        free(dir_record);
+        if (dir_record->magic == NTFS_MAGIC_FILE) free(dir_record);
         free(dir_entry);
         return count;
     }
@@ -295,6 +296,7 @@ int ntfs_readdir(struct ntfs_sb_info *fs, struct ntfs_inode **inode){
                 filename_len = ntfs_cvt_filename(filename, idx_entry);
                 if (is_filename_printable(filename)){
                     current_inode->next_inode = malloc(sizeof (struct ntfs_inode));
+                    current_inode->next_inode->next_inode = NULL;
                     current_inode = current_inode->next_inode;
                     current_inode->parent = *inode;
                     current_inode->filename = malloc(filename_len);
@@ -344,11 +346,109 @@ int free_fs(struct ntfs_sb_info **fs){
         free_inode(&((*fs)->cur_node));
         free_inode(&((*fs)->root_node));
     }
+    close((*fs)->fd);
     free(*fs);
     return 0;
 }
 
-int read_file_data(struct mapping_chunk **chunk, struct ntfs_inode *inode, struct ntfs_sb_info *fs){
+int free_data_chunk(struct mapping_chunk_data **chunk){
+    if ((*chunk)->buf != NULL){
+        free((*chunk)->buf);
+    }
+    if ((*chunk)->lcns != NULL){
+        free((*chunk)->lcns);
+    }
+    if ((*chunk)->lengths != NULL){
+        free((*chunk)->lengths);
+    }
+    free(*chunk);
+    return 0;
+}
+
+/* Parse data runs.
+ *
+ * return 0 on success or -1 on failure.
+ */
+int init_chunk_data(uint64_t offset, struct ntfs_sb_info *fs,
+                   struct mapping_chunk_data **chunk)
+{
+    /* Pointer to the zero-terminated byte stream */
+    uint8_t length_byte;  /* The length byte */
+    uint8_t v, l;   /* v is the number of changed low-order VCN bytes;
+                     * l is the number of changed low-order LCN bytes
+                     */
+
+    uint8_t *run_list = malloc(fs->block_size);
+    pread(fs->fd, run_list, fs->block_size, (long)offset);
+    uint8_t *run_list_ptr = run_list;
+
+    uint8_t *byte;
+    int byte_shift = 8;
+    int mask;
+    uint8_t val;
+    int64_t res;
+    int64_t lcn = 0; /*start lcn*/
+    int err;
+
+    /* init buf */
+    (*chunk)->lcns = malloc(sizeof (int64_t)*10);
+    (*chunk)->lengths = malloc(sizeof (uint64_t)*10);
+    int buf_size = 10;
+    int cur_size = 0;
+
+    do {
+        /*parse of the length byte*/
+        length_byte = *run_list_ptr;
+        v = length_byte & 0x0F;
+        l = length_byte >> 4;
+        uint64_t length = 0;
+        uint8_t count = v;
+
+        byte = (uint8_t *)run_list_ptr + v;
+        count = v;
+
+        res = 0LL;
+        while (count--) {
+            val = *byte--;
+            mask = val >> (byte_shift - 1);
+            res = (res << byte_shift) | ((val + mask) ^ mask);
+        }
+
+        length = res;   /* get length data */
+
+        byte = (uint8_t *)run_list_ptr + v + l;
+        count = l;
+
+        mask = 0xFFFFFFFF;
+        res = 0LL;
+        if (*byte & 0x80)
+            res |= (int64_t)mask;   /* sign-extend it */
+
+        /* get vcn */
+        while (count--)
+            res = (res << byte_shift) | *byte--;
+
+        if (cur_size == buf_size){
+            (*chunk)->lcns = realloc((*chunk)->lcns, buf_size+10);
+            (*chunk)->lengths = realloc((*chunk)->lengths, buf_size+10);
+            buf_size += 10;
+        }
+        lcn += res;
+        (*chunk)->lcns[cur_size] = lcn;
+        (*chunk)->lengths[cur_size] = length;
+        cur_size++;
+        run_list_ptr+= v + l + 1;
+    } while (*run_list_ptr);
+
+    (*chunk)->cur_lcn = 0;
+    (*chunk)->lcn_count = cur_size;
+    (*chunk)->cur_block = 0;
+    free(run_list);
+
+    return 0;
+}
+
+int read_file_data(struct mapping_chunk_data **chunk, struct ntfs_inode *inode, struct ntfs_sb_info *fs){
 
     if (inode->type & MFT_RECORD_IS_DIRECTORY) return -1;
 
@@ -368,19 +468,46 @@ int read_file_data(struct mapping_chunk **chunk, struct ntfs_inode *inode, struc
         return -1;
     }
 
-    *chunk = malloc(sizeof (struct mapping_chunk));
+    *chunk = malloc(sizeof (struct mapping_chunk_data));
 
     if (!data_attr->non_resident){
+        (*chunk)->resident = 1;
         (*chunk)->buf = malloc(data_attr->data.resident.value_len);
         memcpy((*chunk)->buf, (uint8_t *)data_attr + data_attr->data.resident.value_offset, data_attr->data.resident.value_len);
         (*chunk)->length = data_attr->data.resident.value_len;
+        (*chunk)->lcns = NULL;
+        (*chunk)->lengths = NULL;
     } else {
+        (*chunk)->resident = 0;
         uint64_t stream = offset + ((uint8_t *)data_attr - (uint8_t *)file_record) + data_attr->data.non_resident.mapping_pairs_offset;
-        parse_data_run(stream, fs, &(*chunk));
+        init_chunk_data(stream, fs, &(*chunk));
         (*chunk)->length = data_attr->data.non_resident.data_size;
+        (*chunk)->buf = malloc(fs->block_size);
+        (*chunk)->blocks_count = 0;
     }
-
     free(file_record);
+    return 0;
+}
+
+int read_block_file(struct mapping_chunk_data **chunk, struct ntfs_sb_info *fs){
+    uint64_t buf_cur_size = 0;
+    uint64_t buf_size = fs->block_size;
+    if ((*chunk)->cur_block == (*chunk)->lengths[(*chunk)->cur_lcn]) {
+        (*chunk)->cur_lcn++;
+    }
+    if((*chunk)->cur_lcn == (*chunk)->lcn_count){
+        (*chunk)->signal = 1;
+        return 1;
+    }
+    int64_t lcn = (*chunk)->lcns[(*chunk)->cur_lcn]+(*chunk)->cur_block;
+    int err = read_clusters2buf(&(*chunk)->buf, &buf_cur_size, &buf_size, lcn, 1, fs);
+    if (err == -1){
+        (*chunk)->signal = -1;
+        return -1;
+    }
+    (*chunk)->blocks_count++;
+    (*chunk)->cur_block++;
+    (*chunk)->signal = 0;
     return 0;
 }
 

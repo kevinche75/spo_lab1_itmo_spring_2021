@@ -6,6 +6,9 @@
 #include <string.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
 #include "ntfs_utils.h"
 
 int count_nodes(char *path){
@@ -187,8 +190,8 @@ char *cd(struct ntfs_sb_info *fs, char *path){
 }
 
 char *pwd(struct ntfs_sb_info *fs){
-    int size = 1;
-    int max_size = 265;
+    unsigned long size = 1;
+    unsigned long max_size = 265;
     char *output = malloc(max_size);
     output[0] = '\0';
     unsigned long name_len;
@@ -201,11 +204,102 @@ char *pwd(struct ntfs_sb_info *fs){
         name_len = strlen(tmp->filename);
         if (name_len+size+1 > max_size){
             output = realloc(output, name_len+265);
+            max_size += (name_len+265);
         }
         strcat(output, "/");
         strcat(output, tmp->filename);
+        size += (name_len+1);
         tmp = tmp->next_inode;
     }
     strcat(output, " ");
+    return output;
+}
+
+int copy(struct ntfs_sb_info *fs, struct ntfs_inode *node, char *out_path){
+    char *node_path = malloc(strlen(out_path) + strlen(node->filename) + 2);
+    strcpy(node_path, out_path);
+    strcat(node_path, "/");
+    strcat(node_path, node->filename);
+    if (!(node->type & MFT_RECORD_IS_DIRECTORY)){
+        int fd = open(node_path, O_CREAT | O_WRONLY | O_TRUNC, 00666);
+        if (fd == -1) {
+            free(node_path);
+            return -1;
+        }
+        struct mapping_chunk_data *chunk;
+        int err = read_file_data(&chunk, node, fs);
+        if (err == -1){
+            free(node_path);
+        }
+        if (chunk->resident){
+            pwrite(fd, chunk->buf, chunk->length, 0);
+            close(fd);
+            free_data_chunk(&chunk);
+            return 1;
+        } else {
+            long offset = 0;
+            unsigned long size;
+            while (read_block_file(&chunk, fs) == 0){
+                if (chunk->blocks_count << fs->block_shift > chunk->length){
+                    size = chunk->length - ((chunk->blocks_count-1) << fs->block_shift);
+                } else size = fs->block_size;
+                offset += pwrite(fd, chunk->buf, size, offset);
+            }
+            close(fd);
+            int result = chunk->signal;
+            free_data_chunk(&chunk);
+            return result;
+        }
+    } else {
+        if (mkdir(node_path, 00777) != 0) {
+            free(node_path);
+            return -1;
+        }
+        struct ntfs_inode *read_node = malloc(sizeof (struct ntfs_inode));
+        memcpy(read_node, node, sizeof (struct ntfs_inode));
+        read_node->filename = NULL;
+        int err = ntfs_readdir(fs, &read_node);
+        if (err == -1){
+            free_inode(&read_node);
+            return -1;
+        }
+        struct ntfs_inode *tmp = read_node->next_inode;
+        while (tmp != NULL){
+            if(copy(fs, tmp, node_path) == -1){
+                free_inode(&read_node);
+                return -1;
+            }
+            tmp = tmp->next_inode;
+        }
+        free_inode(&read_node);
+    }
+    return 0;
+}
+
+char *cp(struct ntfs_sb_info *fs, char *path, char *out_path){
+    char *output = malloc(27);
+    output[0] = '\0';
+    if (strcmp(path, ".")==0 || strcmp(path, "..")==0){
+        sprintf(output, "Incompatible file path");
+        return output;
+    }
+    struct ntfs_find_info *result;
+    struct ntfs_inode *start_node;
+    char *message;
+    start_node = path[0] == '/' ? fs->root_node : fs->cur_node;
+    int err = find_node_by_name(fs, path, &start_node, &result);
+    if (err == -1){
+        message = "No such file or directory\n";
+        sprintf(output, "%s", message);
+        return output;
+    } else if (copy(fs, result->result, out_path)!=-1){
+        message = "Successfully copied\n";
+        sprintf(output, "%s", message);
+        return output;
+    } else {
+        message = "Error\n";
+        sprintf(output, "%s", message);
+        return output;
+    }
     return output;
 }

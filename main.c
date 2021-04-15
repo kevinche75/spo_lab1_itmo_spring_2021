@@ -21,7 +21,7 @@ int shell(char *filename){
             continue;
         }
         char *path = strtok(NULL, " \n");
-        char *outPath = strtok(NULL, " \n");
+        char *out_path = strtok(NULL, " \n");
         if (strcmp(command, "exit") == 0) {
             exitFlag = 1;
         } else if (strcmp(command, "help") == 0) {
@@ -45,16 +45,24 @@ int shell(char *filename){
             free(output);
         } else if (strcmp(command, "cd") == 0) {
             if (path == NULL){
-                printf("cd command require path argument");
+                printf("cd command require path argument\n");
                 continue;
             }
             char *output = cd(fs, path);
             printf("%s", output);
             free(output);
         } else if (strcmp(command, "cp") == 0) {
-//            char *output = cp(fileSystem, path, outPath);
-//            printf("%s", output);
-//            free(output);
+            if (path == NULL) {
+                printf("cp command require path argument\n");
+                continue;
+            }
+            if (out_path == NULL) {
+                printf("cp command require out_path argument\n");
+                continue;
+            }
+            char *output = cp(fs, path, out_path);
+            printf("%s", output);
+            free(output);
         } else {
             printf("Wrong command. Enter 'help' to get help.\n");
         }

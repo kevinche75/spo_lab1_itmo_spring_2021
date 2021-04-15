@@ -283,6 +283,7 @@ struct ntfs_idx_allocation {
 enum {
     INDEX_ENTRY_NODE            = 1,
     INDEX_ENTRY_END             = 2,
+    INDEX_ENTRY_STRANGE         = 0,
     /* force enum bit width to 16-bit */
     INDEX_ENTRY_SPACE_FILTER    = 0xFFFF,
 } __attribute__((__packed__));
@@ -300,6 +301,19 @@ struct mapping_chunk {
     uint64_t length;
     uint8_t *buf;
     uint8_t current_block;
+};
+
+struct mapping_chunk_data{
+    uint8_t resident;
+    uint64_t length;
+    uint64_t blocks_count;
+    uint8_t *buf;
+    int64_t *lcns;
+    uint64_t *lengths;
+    int cur_lcn;
+    int lcn_count;
+    unsigned long cur_block;
+    int signal;
 };
 
 struct ntfs_find_info{
@@ -326,5 +340,7 @@ int read_clusters2buf(uint8_t **buf, uint64_t *buf_current_size, uint64_t *buf_s
 int parse_data_run(uint64_t offset, struct ntfs_sb_info *fs,
                    struct mapping_chunk **chunk);
 int free_inode(struct ntfs_inode **inode);
-int read_file_data(struct mapping_chunk **chunk, struct ntfs_inode *inode, struct ntfs_sb_info *fs);
+int read_file_data(struct mapping_chunk_data **chunk, struct ntfs_inode *inode, struct ntfs_sb_info *fs);
 int free_fs(struct ntfs_sb_info **fs);
+int read_block_file(struct mapping_chunk_data **chunk, struct ntfs_sb_info *fs);
+int free_data_chunk(struct mapping_chunk_data **chunk);
