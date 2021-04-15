@@ -339,8 +339,8 @@ uint8_t ntfs_cvt_filename(char *filename,
 int read_clusters2buf(uint8_t **buf, uint64_t *buf_current_size, uint64_t *buf_size, int64_t lcn, uint64_t length, struct ntfs_sb_info * fs);
 int parse_data_run(uint64_t offset, struct ntfs_sb_info *fs,
                    struct mapping_chunk **chunk);
-int free_inode(struct ntfs_inode **inode);
+int free_inode(struct ntfs_inode *inode);
 int read_file_data(struct mapping_chunk_data **chunk, struct ntfs_inode *inode, struct ntfs_sb_info *fs);
-int free_fs(struct ntfs_sb_info **fs);
+int free_fs(struct ntfs_sb_info *fs);
 int read_block_file(struct mapping_chunk_data **chunk, struct ntfs_sb_info *fs);
-int free_data_chunk(struct mapping_chunk_data **chunk);
+int free_data_chunk(struct mapping_chunk_data *chunk);

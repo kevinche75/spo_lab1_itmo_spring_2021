@@ -323,14 +323,14 @@ int ntfs_readdir(struct ntfs_sb_info *fs, struct ntfs_inode **inode){
     return count;
 }
 
-int free_inode(struct ntfs_inode **inode){
+int free_inode(struct ntfs_inode *inode){
 
     struct ntfs_inode* tmp;
 
-    while (*inode != NULL)
+    while (inode != NULL)
     {
-        tmp = *inode;
-        *inode = (*inode)->next_inode;
+        tmp = inode;
+        inode = (inode)->next_inode;
         tmp->parent = NULL;
         tmp->next_inode = NULL;
         free(tmp->filename);
@@ -339,29 +339,24 @@ int free_inode(struct ntfs_inode **inode){
     return 0;
 }
 
-int free_fs(struct ntfs_sb_info **fs){
-    if ((*fs)->cur_node->mft_no == FILE_root){
-        free_inode(&((*fs)->cur_node));
-    } else {
-        free_inode(&((*fs)->cur_node));
-        free_inode(&((*fs)->root_node));
-    }
-    close((*fs)->fd);
-    free(*fs);
+int free_fs(struct ntfs_sb_info *fs){
+    free_inode(((fs)->root_node));
+    close((fs)->fd);
+    free(fs);
     return 0;
 }
 
-int free_data_chunk(struct mapping_chunk_data **chunk){
-    if ((*chunk)->buf != NULL){
-        free((*chunk)->buf);
+int free_data_chunk(struct mapping_chunk_data *chunk){
+    if ((chunk)->buf != NULL){
+        free((chunk)->buf);
     }
-    if ((*chunk)->lcns != NULL){
-        free((*chunk)->lcns);
+    if ((chunk)->lcns != NULL){
+        free((chunk)->lcns);
     }
-    if ((*chunk)->lengths != NULL){
-        free((*chunk)->lengths);
+    if ((chunk)->lengths != NULL){
+        free((chunk)->lengths);
     }
-    free(*chunk);
+    free(chunk);
     return 0;
 }
 

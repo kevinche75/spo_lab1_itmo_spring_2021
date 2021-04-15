@@ -67,7 +67,7 @@ int shell(char *filename){
             printf("Wrong command. Enter 'help' to get help.\n");
         }
     }
-    free_fs(&fs);
+    free_fs(fs);
     return 0;
 }
 

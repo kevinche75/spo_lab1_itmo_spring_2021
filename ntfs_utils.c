@@ -40,12 +40,12 @@ int find_node_by_name(struct ntfs_sb_info *fs, char *path, struct ntfs_inode **s
     while (sub_dir != NULL){
         found = false;
         if (!(result_node->type & MFT_RECORD_IS_DIRECTORY)) {
-            free_inode(&start_result_node);
+            free_inode(start_result_node);
             return -1;
         }
         err = ntfs_readdir(fs, &result_node);
         if (err == -1) {
-            free_inode(&start_result_node);
+            free_inode(start_result_node);
             return -1;
         }
         head = result_node->next_inode;
@@ -55,7 +55,7 @@ int find_node_by_name(struct ntfs_sb_info *fs, char *path, struct ntfs_inode **s
                 memcpy(tmp, head, sizeof(struct ntfs_inode));
                 tmp->filename = malloc(strlen(head->filename)+1);
                 strcpy(tmp->filename, head->filename);
-                free_inode(&result_node->next_inode);
+                free_inode(result_node->next_inode);
                 result_node->next_inode = tmp;
                 found = true;
                 break;
@@ -63,7 +63,7 @@ int find_node_by_name(struct ntfs_sb_info *fs, char *path, struct ntfs_inode **s
             head = head->next_inode;
         }
         if(!found) {
-            free_inode(&start_result_node);
+            free_inode(start_result_node);
             return -1;
         }
         result_node = result_node->next_inode;
@@ -120,10 +120,10 @@ char *ls(struct ntfs_sb_info *fs, char *path){
             tmp = tmp->next_inode;
         }
         if (wo_path){
-            free_inode(&(find_result->result->next_inode));
+            free_inode((find_result->result->next_inode));
             find_result->result->next_inode = NULL;
         } else {
-            free_inode(&(find_result->start));
+            free_inode((find_result->start));
         }
         if (parent_pars){
             fs->cur_node->parent->next_inode = fs->cur_node;
@@ -145,7 +145,7 @@ char *cd(struct ntfs_sb_info *fs, char *path){
     if (strcmp(path, "..")==0){
         if (fs->cur_node->mft_no == FILE_root) return output;
         struct ntfs_inode *tmp = fs->cur_node->parent;
-        free_inode(&(fs->cur_node));
+        free_inode((fs->cur_node));
         fs->cur_node = tmp;
         fs->cur_node->next_inode = NULL;
         return output;
@@ -160,7 +160,7 @@ char *cd(struct ntfs_sb_info *fs, char *path){
             result->start->next_inode->parent = fs->root_node;
             fs->cur_node = result->result;
             result->start->next_inode = NULL;
-            free_inode(&(result->start));
+            free_inode((result->start));
             free(result);
             return output;
         } else goto is_f;
@@ -172,7 +172,7 @@ char *cd(struct ntfs_sb_info *fs, char *path){
             result->start->next_inode->parent = fs->cur_node;
             fs->cur_node = result->result;
             result->start->next_inode = NULL;
-            free_inode(&(result->start));
+            free_inode((result->start));
             free(result);
             return output;
         } else goto is_f;
@@ -182,7 +182,7 @@ char *cd(struct ntfs_sb_info *fs, char *path){
         sprintf(output, "%s", message);
         return output;
     is_f:
-        free_inode(&(result->start));
+        free_inode((result->start));
         free(result);
         message = "Not a directory\n";
         sprintf(output, "%s", message);
@@ -234,7 +234,7 @@ int copy(struct ntfs_sb_info *fs, struct ntfs_inode *node, char *out_path){
         if (chunk->resident){
             pwrite(fd, chunk->buf, chunk->length, 0);
             close(fd);
-            free_data_chunk(&chunk);
+            free_data_chunk(chunk);
             return 1;
         } else {
             long offset = 0;
@@ -247,7 +247,7 @@ int copy(struct ntfs_sb_info *fs, struct ntfs_inode *node, char *out_path){
             }
             close(fd);
             int result = chunk->signal;
-            free_data_chunk(&chunk);
+            free_data_chunk(chunk);
             return result;
         }
     } else {
@@ -260,18 +260,18 @@ int copy(struct ntfs_sb_info *fs, struct ntfs_inode *node, char *out_path){
         read_node->filename = NULL;
         int err = ntfs_readdir(fs, &read_node);
         if (err == -1){
-            free_inode(&read_node);
+            free_inode(read_node);
             return -1;
         }
         struct ntfs_inode *tmp = read_node->next_inode;
         while (tmp != NULL){
             if(copy(fs, tmp, node_path) == -1){
-                free_inode(&read_node);
+                free_inode(read_node);
                 return -1;
             }
             tmp = tmp->next_inode;
         }
-        free_inode(&read_node);
+        free_inode(read_node);
     }
     return 0;
 }
