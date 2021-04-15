@@ -230,6 +230,7 @@ int copy(struct ntfs_sb_info *fs, struct ntfs_inode *node, char *out_path){
         int err = read_file_data(&chunk, node, fs);
         if (err == -1){
             free(node_path);
+            close(fd);
         }
         if (chunk->resident){
             pwrite(fd, chunk->buf, chunk->length, 0);
@@ -260,6 +261,7 @@ int copy(struct ntfs_sb_info *fs, struct ntfs_inode *node, char *out_path){
         read_node->filename = NULL;
         int err = ntfs_readdir(fs, &read_node);
         if (err == -1){
+            free(node_path);
             free_inode(read_node);
             return -1;
         }
@@ -271,6 +273,7 @@ int copy(struct ntfs_sb_info *fs, struct ntfs_inode *node, char *out_path){
             }
             tmp = tmp->next_inode;
         }
+        free(node_path);
         free_inode(read_node);
     }
     return 0;
