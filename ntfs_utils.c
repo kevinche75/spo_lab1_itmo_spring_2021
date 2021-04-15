@@ -231,11 +231,13 @@ int copy(struct ntfs_sb_info *fs, struct ntfs_inode *node, char *out_path){
         if (err == -1){
             free(node_path);
             close(fd);
+            return -1;
         }
         if (chunk->resident){
             pwrite(fd, chunk->buf, chunk->length, 0);
             close(fd);
             free_data_chunk(chunk);
+            free(node_path);
             return 1;
         } else {
             long offset = 0;
@@ -249,6 +251,7 @@ int copy(struct ntfs_sb_info *fs, struct ntfs_inode *node, char *out_path){
             close(fd);
             int result = chunk->signal;
             free_data_chunk(chunk);
+            free(node_path);
             return result;
         }
     } else {
@@ -269,6 +272,7 @@ int copy(struct ntfs_sb_info *fs, struct ntfs_inode *node, char *out_path){
         while (tmp != NULL){
             if(copy(fs, tmp, node_path) == -1){
                 free_inode(read_node);
+                free(node_path);
                 return -1;
             }
             tmp = tmp->next_inode;

@@ -547,9 +547,5 @@ struct ntfs_sb_info *ntfs_init(char *name){
     root_inode->next_inode = NULL;
     sbi->cur_node = root_inode;
     sbi->root_node = root_inode;
-//    ntfs_readdir(sbi, &root_inode);
-//    free_inode(&root_inode);
-//    struct mapping_chunk *chunk = NULL;
-//    read_file_data(&chunk, root_inode->next_inode, sbi);
     return  sbi;
 }
