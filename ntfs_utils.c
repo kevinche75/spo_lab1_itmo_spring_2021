@@ -245,6 +245,8 @@ int copy(struct ntfs_sb_info *fs, struct ntfs_inode *node, char *out_path){
             while (read_block_file(&chunk, fs) == 0){
                 if (chunk->blocks_count << fs->block_shift > chunk->length){
                     size = chunk->length - ((chunk->blocks_count-1) << fs->block_shift);
+                    offset += pwrite(fd, chunk->buf, size, offset);
+                    break;
                 } else size = fs->block_size;
                 offset += pwrite(fd, chunk->buf, size, offset);
             }

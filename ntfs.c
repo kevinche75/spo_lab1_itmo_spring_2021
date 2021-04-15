@@ -190,7 +190,7 @@ int parse_data_run(uint64_t offset, struct ntfs_sb_info *fs,
 }
 
 int ntfs_readdir(struct ntfs_sb_info *fs, struct ntfs_inode **inode){
-    struct ntfs_mft_record *dir_record = malloc(sizeof (struct ntfs_mft_record));
+    struct ntfs_mft_record *dir_record = malloc(fs->mft_record_size);
     uint64_t offset;
     offset = mft_record_lookup(fs, (*inode)->mft_no, &dir_record);
     int err;
@@ -212,7 +212,7 @@ int ntfs_readdir(struct ntfs_sb_info *fs, struct ntfs_inode **inode){
     }
 
     char filename[NTFS_MAX_FILE_NAME_LEN + 1];
-    struct ntfs_mft_record *dir_entry = malloc(sizeof (struct ntfs_mft_record));
+    struct ntfs_mft_record *dir_entry = malloc(fs->mft_record_size);
 
     struct ntfs_idx_root *ir = (struct ntfs_idx_root *)((uint8_t *)attr_index + attr_index->data.resident.value_offset);
     uint8_t *idx_entry_offset = ((uint8_t *)&ir->index + ir->index.entries_offset);
@@ -241,7 +241,7 @@ int ntfs_readdir(struct ntfs_sb_info *fs, struct ntfs_inode **inode){
                 count++;
             }
         }
-    } while(!(idx_entry->flags & INDEX_ENTRY_END) && idx_entry->flags != INDEX_ENTRY_STRANGE);
+    } while(!(idx_entry->flags & INDEX_ENTRY_END));
 
     if (!(idx_entry->flags & INDEX_ENTRY_NODE)) {
         if (dir_record->magic == NTFS_MAGIC_FILE) free(dir_record);
@@ -275,7 +275,6 @@ int ntfs_readdir(struct ntfs_sb_info *fs, struct ntfs_inode **inode){
         if (chunk->length >=0){
             idx_alloc = (struct ntfs_idx_allocation *)(chunk->buf + (chunk->current_block << fs->block_shift));
             if (idx_alloc->magic != NTFS_MAGIC_INDX) {
-                printf("Not a valid INDX record.\n");
                 free(dir_entry);
                 free(chunk->buf);
                 free(chunk);
@@ -447,7 +446,7 @@ int read_file_data(struct mapping_chunk_data **chunk, struct ntfs_inode *inode, 
 
     if (inode->type & MFT_RECORD_IS_DIRECTORY) return -1;
 
-    struct ntfs_mft_record *file_record = malloc(sizeof (struct ntfs_mft_record));
+    struct ntfs_mft_record *file_record = malloc(fs->mft_record_size);
     uint64_t offset = mft_record_lookup(fs, inode->mft_no, &file_record);
 
     if (offset == -1){
