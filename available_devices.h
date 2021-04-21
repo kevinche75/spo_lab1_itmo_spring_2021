@@ -6,5 +6,6 @@
 #define SPO_LAB1_AVAILABLE_DEVICES_H
 
 
-    void print_available_devices();
 #endif //SPO_LAB1_AVAILABLE_DEVICES_H
+
+void print_available_devices();

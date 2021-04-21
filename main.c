@@ -78,11 +78,10 @@ int main(int argc, char *argv[]) {
         return 0;
     }
     if (argc >= 2 && strcmp(argv[1], "list") == 0) {
-        print_available_devices(1);
+        print_available_devices();
         return 0;
     }
     if (argc >= 3 && strcmp(argv[1], "shell") == 0) {
-        print_available_devices(0);
         shell(argv[2]);
         return 0;
     }

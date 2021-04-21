@@ -39,26 +39,10 @@ int initialize_cache(blkid_cache *cache) {
     return 0;
 }
 
-int initialize_cache_wo_print(blkid_cache *cache) {
-    int status_init = blkid_get_cache(cache, NULL);
-    if (status_init < 0) {
-        return 1;
-    }
-    return 0;
-}
-
 int probe_cache(blkid_cache *cache) {
     int status_probe = blkid_probe_all(*cache);
     if (status_probe < 0) {
         fprintf(stderr, "ERROR: Can not probe devices.");
-        return 1;
-    }
-    return 0;
-}
-
-int probe_cache_wo_print(blkid_cache *cache) {
-    int status_probe = blkid_probe_all(*cache);
-    if (status_probe < 0) {
         return 1;
     }
     return 0;
@@ -69,13 +53,6 @@ void check_and_print(blkid_probe *probe, char *tag) {
     if (blkid_probe_has_value(*probe, tag)) {
         blkid_probe_lookup_value(*probe, tag, &var, NULL);
         printf("%s=%s\t", tag, var);
-    }
-}
-
-void check_and_print_wo_print(blkid_probe *probe, char *tag) {
-    const char *var;
-    if (blkid_probe_has_value(*probe, tag)) {
-        blkid_probe_lookup_value(*probe, tag, &var, NULL);
     }
 }
 
@@ -107,34 +84,9 @@ int iterate_dev(blkid_cache *cache) {
     }
 }
 
-int iterate_dev_wo_print(blkid_cache *cache) {
-    blkid_dev dev;
-    blkid_dev_iterate iterator = blkid_dev_iterate_begin(*cache);
-
-    while (blkid_dev_next(iterator, &dev) == 0) {
-        const char *devname = blkid_dev_devname(dev);
-
-        blkid_probe probe = blkid_new_probe_from_filename(devname);
-        if (probe != NULL) {
-            blkid_loff_t probeSize = blkid_probe_get_size(probe);
-            blkid_do_probe(probe);
-            check_and_print_wo_print(&probe, "TYPE");
-            check_and_print_wo_print(&probe, "UUID");
-            check_and_print_wo_print(&probe, "LABEL");
-
-        }
-    }
-}
-
-void print_available_devices(int pr){
+void print_available_devices(){
     blkid_cache cache;
-    if (pr){
-        initialize_cache(&cache);
-        probe_cache(&cache);
-        iterate_dev(&cache);
-    } else {
-        initialize_cache_wo_print(&cache);
-        probe_cache_wo_print(&cache);
-        iterate_dev_wo_print(&cache);
-    }
+    initialize_cache(&cache);
+    probe_cache(&cache);
+    iterate_dev(&cache);
 }
