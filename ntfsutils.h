@@ -7,11 +7,11 @@
 
 #endif //SPO_LAB1_NTFS_UTILS_H
 
-char *ls(struct ntfs_sb_info *fs, char *path);
+char *ls(void *fs_ptr, char *path);
 int count_nodes(char *path);
-char *cd(struct ntfs_sb_info *fs, char *path);
-char *pwd(struct ntfs_sb_info *fs);
-char *cp(struct ntfs_sb_info *fs, char *path, char *out_path);
+char *cd(void *fs_ptr, char *path);
+char *pwd(void *fs_ptr);
+char *cp(void *fs_ptr, char *path, char *out_path);
 int print_block_devices();
 struct ntfs_sb_info *init_fs(char *filename);
-int close_fs(struct ntfs_sb_info *fs);
+int close_fs(void *fs_ptr);

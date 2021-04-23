@@ -1,12 +1,10 @@
-#include "available_devices.h"
 #include <stdio.h>
-#include "ntfs.h"
 #include <string.h>
 #include <malloc.h>
 #include "ntfsutils.h"
 
 int shell(char *filename){
-    struct ntfs_sb_info *fs  = ntfs_init(filename);
+    void *fs  = init_fs(filename);
     if (fs == NULL) return -1;
     printf("NTFS filesystem detected.\n");
     int exitFlag = 0;
@@ -67,7 +65,7 @@ int shell(char *filename){
             printf("Wrong command. Enter 'help' to get help.\n");
         }
     }
-    free_fs(fs);
+    close_fs(fs);
     return 0;
 }
 
@@ -78,7 +76,7 @@ int main(int argc, char *argv[]) {
         return 0;
     }
     if (argc >= 2 && strcmp(argv[1], "list") == 0) {
-        print_available_devices();
+        print_block_devices();
         return 0;
     }
     if (argc >= 3 && strcmp(argv[1], "shell") == 0) {

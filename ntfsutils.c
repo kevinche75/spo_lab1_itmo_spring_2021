@@ -25,10 +25,10 @@ int count_nodes(char *path){
     return result;
 }
 
-int find_node_by_name(struct ntfs_sb_info *fs, char *path, struct ntfs_inode **start_node, struct ntfs_find_info **result){
+int find_node_by_name(struct ntfs_sb_info *fs, char *path, struct ntfs_inode *start_node, struct ntfs_find_info **result){
     struct ntfs_inode *result_node = malloc(sizeof (struct ntfs_inode));
     struct ntfs_inode *head;
-    memcpy(result_node, *start_node, sizeof (struct ntfs_inode));
+    memcpy(result_node, start_node, sizeof (struct ntfs_inode));
     result_node->filename = NULL;
     struct ntfs_inode *start_result_node = result_node;
     bool found = false;
@@ -80,14 +80,15 @@ int find_node_by_name(struct ntfs_sb_info *fs, char *path, struct ntfs_inode **s
     return -1;
 }
 
-char *ls(struct ntfs_sb_info *fs, char *path){
+char *ls(void *fs_ptr, char *path){
+    struct ntfs_sb_info* fs = (struct ntfs_sb_info*)fs_ptr;
     bool wo_path = false;
     bool parent_pars = false;
     struct ntfs_find_info *find_result;
     int err_f = 0;
     if (path == NULL || strcmp(path, ".")==0) {
         find_result = malloc(sizeof (struct ntfs_find_info));
-        find_result->result =  fs->cur_node;
+        find_result->result = (struct ntfs_inode *) (struct ntfs_sb_info *) fs->cur_node;
         wo_path = true;
         goto parse;
     }
@@ -99,9 +100,9 @@ char *ls(struct ntfs_sb_info *fs, char *path){
         goto parse;
     }
     if (path[0] == '/'){
-        err_f = find_node_by_name(fs, path, &fs->root_node, &find_result);
+        err_f = find_node_by_name(fs, path, fs->root_node, &find_result);
     } else {
-        err_f = find_node_by_name(fs, path, &fs->cur_node, &find_result);
+        err_f = find_node_by_name(fs, path, fs->cur_node, &find_result);
     }
     parse:
     if (err_f != -1){
@@ -136,7 +137,8 @@ char *ls(struct ntfs_sb_info *fs, char *path){
     return NULL;
 }
 
-char *cd(struct ntfs_sb_info *fs, char *path){
+char *cd(void *fs_ptr, char *path){
+    struct ntfs_sb_info* fs = (struct ntfs_sb_info*)fs_ptr;
     char *output = malloc(27);
     output[0] = '\0';
     char *message;
@@ -154,7 +156,7 @@ char *cd(struct ntfs_sb_info *fs, char *path){
     struct ntfs_find_info *result;
     int err = 0;
     if (path[0] == '/'){
-        err = find_node_by_name(fs, path, &(fs->root_node), &result);
+        err = find_node_by_name(fs, path, fs->root_node, &result);
         if (err == -1) goto no_f;
         if (result->result->type & MFT_RECORD_IS_DIRECTORY){
             fs->root_node->next_inode = result->start->next_inode;
@@ -166,7 +168,7 @@ char *cd(struct ntfs_sb_info *fs, char *path){
             return output;
         } else goto is_f;
     } else {
-        err = find_node_by_name(fs, path, &(fs->cur_node), &result);
+        err = find_node_by_name(fs, path, fs->cur_node, &result);
         if (err == -1) goto no_f;
         if (result->result->type & MFT_RECORD_IS_DIRECTORY){
             fs->cur_node->next_inode = result->start->next_inode;
@@ -190,7 +192,8 @@ char *cd(struct ntfs_sb_info *fs, char *path){
         return output;
 }
 
-char *pwd(struct ntfs_sb_info *fs){
+char *pwd(void *fs_ptr){
+    struct ntfs_sb_info* fs = (struct ntfs_sb_info*)fs_ptr;
     unsigned long size = 1;
     unsigned long max_size = 265;
     char *output = malloc(max_size);
@@ -216,7 +219,8 @@ char *pwd(struct ntfs_sb_info *fs){
     return output;
 }
 
-int copy(struct ntfs_sb_info *fs, struct ntfs_inode *node, char *out_path){
+int copy(void *fs_ptr, struct ntfs_inode *node, char *out_path){
+    struct ntfs_sb_info* fs = (struct ntfs_sb_info*)fs_ptr;
     char *node_path = malloc(strlen(out_path) + strlen(node->filename) + 2);
     strcpy(node_path, out_path);
     strcat(node_path, "/");
@@ -286,7 +290,8 @@ int copy(struct ntfs_sb_info *fs, struct ntfs_inode *node, char *out_path){
     return 0;
 }
 
-char *cp(struct ntfs_sb_info *fs, char *path, char *out_path){
+char *cp(void *fs_ptr, char *path, char *out_path){
+    struct ntfs_sb_info* fs = (struct ntfs_sb_info*)fs_ptr;
     char *output = malloc(27);
     output[0] = '\0';
     if (strcmp(path, ".")==0 || strcmp(path, "..")==0){
@@ -297,7 +302,7 @@ char *cp(struct ntfs_sb_info *fs, char *path, char *out_path){
     struct ntfs_inode *start_node;
     char *message;
     start_node = path[0] == '/' ? fs->root_node : fs->cur_node;
-    int err = find_node_by_name(fs, path, &start_node, &result);
+    int err = find_node_by_name(fs, path, start_node, &result);
     if (err == -1){
         message = "No such file or directory\n";
         sprintf(output, "%s", message);
@@ -323,6 +328,7 @@ struct ntfs_sb_info *init_fs(char *filename){
     return ntfs_init(filename);
 }
 
-int close_fs(struct ntfs_sb_info *fs){
+int close_fs(void *fs_ptr){
+    struct ntfs_sb_info* fs = (struct ntfs_sb_info*)fs_ptr;
     return free_fs(fs);
 }
