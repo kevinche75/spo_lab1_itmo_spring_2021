@@ -324,8 +324,8 @@ int print_block_devices(){
     return 0;
 }
 
-struct ntfs_sb_info *init_fs(char *filename){
-    return ntfs_init(filename);
+void *init_fs(char *filename){
+    return (void *)ntfs_init(filename);
 }
 
 int close_fs(void *fs_ptr){

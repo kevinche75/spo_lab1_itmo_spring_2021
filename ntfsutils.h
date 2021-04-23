@@ -13,5 +13,5 @@ char *cd(void *fs_ptr, char *path);
 char *pwd(void *fs_ptr);
 char *cp(void *fs_ptr, char *path, char *out_path);
 int print_block_devices();
-struct ntfs_sb_info *init_fs(char *filename);
+void *init_fs(char *filename);
 int close_fs(void *fs_ptr);
