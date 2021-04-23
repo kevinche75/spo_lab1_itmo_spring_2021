@@ -3,7 +3,7 @@
 #include "ntfs.h"
 #include <string.h>
 #include <malloc.h>
-#include "ntfs_utils.h"
+#include "ntfsutils.h"
 
 int shell(char *filename){
     struct ntfs_sb_info *fs  = ntfs_init(filename);

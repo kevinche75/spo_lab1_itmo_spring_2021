@@ -9,7 +9,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
-#include "ntfs_utils.h"
+#include "ntfsutils.h"
+#include "available_devices.h"
 
 int count_nodes(char *path){
     char path_buf[400];
@@ -311,4 +312,17 @@ char *cp(struct ntfs_sb_info *fs, char *path, char *out_path){
         return output;
     }
     return output;
+}
+
+int print_block_devices(){
+    print_available_devices();
+    return 0;
+}
+
+struct ntfs_sb_info *init_fs(char *filename){
+    return ntfs_init(filename);
+}
+
+int close_fs(struct ntfs_sb_info *fs){
+    return free_fs(fs);
 }
